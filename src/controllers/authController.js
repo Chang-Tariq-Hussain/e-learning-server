@@ -18,7 +18,7 @@ const registerUser =  async (req, res) => {
 
     // Generate a JWT token
     const token = jwt.sign(
-      { id: newUser._id },
+      {email, id: newUser._id },
       process.env.JWT_SECRET,
       { expiresIn: '24h' } // Token expires in 1 hour
     );
@@ -38,26 +38,52 @@ const registerUser =  async (req, res) => {
 };
 
 
-const loginUser = async(req,res) => {
-  const {email, password} = req.body;
+const loginUser = async (req, res) => {
+  const { email, password } = req.body;
 
   try {
-    const user = await User.findOne({email});
+    // Find user by email
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found. Please check your email or register.',
+      });
+    }
 
-    const token = jwt.sign({email: email}, process.env.JWT_SECRET, {expiresIn: '24h'} )
+    // Compare the provided password with the stored hashed password
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials. Please try again.',
+      });
+    }
 
+    // Generate a JWT token
+    const token = jwt.sign(
+      { email: user.email, id: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    // Respond with user details and token
     res.status(200).json({
-      status: true,
-      message: 'User logged in successfully', 
+      success: true,
+      message: 'User logged in successfully',
       token: `Bearer ${token}`,
       data: {
         user: user
       },
-      meta: {}
-    })
+      meta: {},
+    });
   } catch (error) {
-    res.status(500).json({success: false, message:error.message});
+    // Handle server errors
+    res.status(500).json({
+      success: false,
+      message: 'An error occurred during login.',
+      error: error.message,
+    });
   }
-}
-  
+};
 module.exports = {registerUser, loginUser}
